@@ -24,7 +24,30 @@ create table if not exists leads (
 
 create index if not exists leads_cliente_id_idx on leads(cliente_id);
 
+-- Prospecção do Hunter: agências/freelancers que o Hugo aborda para virarem
+-- clientes. Uso interno, nunca aparece no painel de nenhum cliente.
+-- place_id vem do Google Places e é o que evita reimportar o mesmo prospect.
+create table if not exists prospects (
+  id uuid primary key default gen_random_uuid(),
+  place_id text not null unique,
+  nome text not null,
+  endereco text,
+  copy_b2b text,
+  mensagem_pronta text,
+  link_whatsapp text,
+  aberto_agora boolean,
+  horario text,
+  melhor_horario_contato text,
+  stage text not null default 'pendente' check (
+    stage in ('pendente', 'contatado', 'respondeu', 'sem_resposta', 'cliente', 'descartado')
+  ),
+  contatado_em timestamptz,
+  atualizado_em timestamptz not null default now(),
+  criado_em timestamptz not null default now()
+);
+
 -- Fase 1: sem RLS (não há Supabase Auth ainda). O acesso é controlado pela
 -- aplicação: a leitura do painel do cliente usa a service role no servidor
 -- (nunca a anon key no navegador), filtrando por slug.
--- Na Fase 2, ao introduzir Supabase Auth, habilitar RLS nas duas tabelas.
+-- Na Fase 2, ao introduzir Supabase Auth, habilitar RLS em clientes e leads.
+-- A tabela prospects nunca fica exposta a cliente nenhum.

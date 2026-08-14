@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { AdminGate, AdminNav, sairDoAdmin } from "@/components/admin-gate";
 import type { Cliente, Lead, LeadStatus } from "@/lib/types";
-
-const SECRET_KEY = "prospecia:admin-secret";
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
   novo: "Novo",
@@ -12,64 +11,10 @@ const STATUS_LABEL: Record<LeadStatus, string> = {
 };
 
 export default function AdminPage() {
-  const [secret, setSecret] = useState<string | null>(null);
-  const [secretInput, setSecretInput] = useState("");
-  const [authError, setAuthError] = useState("");
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem(SECRET_KEY);
-    if (saved) setSecret(saved);
-  }, []);
-
-  async function handleUnlock(e: React.FormEvent) {
-    e.preventDefault();
-    setAuthError("");
-    const res = await fetch("/api/admin/clientes", {
-      headers: { "x-admin-secret": secretInput },
-    });
-    if (res.status === 401) {
-      setAuthError("Senha incorreta.");
-      return;
-    }
-    sessionStorage.setItem(SECRET_KEY, secretInput);
-    setSecret(secretInput);
-  }
-
-  if (!secret) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-neutral-950 text-neutral-100 px-4">
-        <form
-          onSubmit={handleUnlock}
-          className="w-full max-w-sm space-y-4 bg-neutral-900 border border-neutral-800 rounded-xl p-6"
-        >
-          <h1 className="text-lg font-semibold">Admin ProspecIA</h1>
-          <input
-            type="password"
-            autoFocus
-            value={secretInput}
-            onChange={(e) => setSecretInput(e.target.value)}
-            placeholder="Senha admin"
-            className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-orange-500"
-          />
-          {authError && <p className="text-sm text-red-400">{authError}</p>}
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-orange-500 text-neutral-950 font-medium py-2 text-sm hover:opacity-90"
-          >
-            Entrar
-          </button>
-        </form>
-      </main>
-    );
-  }
-
-  return <AdminDashboard secret={secret} onLogout={() => {
-    sessionStorage.removeItem(SECRET_KEY);
-    setSecret(null);
-  }} />;
+  return <AdminGate>{(secret) => <ClientesDashboard secret={secret} />}</AdminGate>;
 }
 
-function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => void }) {
+function ClientesDashboard({ secret }: { secret: string }) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [novoClienteNome, setNovoClienteNome] = useState("");
@@ -78,18 +23,35 @@ function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => 
   const [importMsg, setImportMsg] = useState("");
   const [loadingLeads, setLoadingLeads] = useState(false);
 
-  async function carregarClientes() {
+  const carregarClientes = useCallback(async () => {
     const res = await fetch("/api/admin/clientes", {
       headers: { "x-admin-secret": secret },
     });
     const data = await res.json();
     if (res.ok) setClientes(data.clientes);
-  }
+  }, [secret]);
 
   useEffect(() => {
     carregarClientes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [carregarClientes]);
+
+  const carregarLeads = useCallback(
+    async (clienteId: string) => {
+      setLoadingLeads(true);
+      const res = await fetch(`/api/admin/leads?clienteId=${clienteId}`, {
+        headers: { "x-admin-secret": secret },
+      });
+      const data = await res.json();
+      if (res.ok) setLeads(data.leads);
+      setLoadingLeads(false);
+    },
+    [secret]
+  );
+
+  useEffect(() => {
+    if (selectedId) carregarLeads(selectedId);
+    else setLeads([]);
+  }, [selectedId, carregarLeads]);
 
   async function criarCliente(e: React.FormEvent) {
     e.preventDefault();
@@ -106,22 +68,6 @@ function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => 
       setSelectedId(data.cliente.id);
     }
   }
-
-  async function carregarLeads(clienteId: string) {
-    setLoadingLeads(true);
-    const res = await fetch(`/api/admin/leads?clienteId=${clienteId}`, {
-      headers: { "x-admin-secret": secret },
-    });
-    const data = await res.json();
-    if (res.ok) setLeads(data.leads);
-    setLoadingLeads(false);
-  }
-
-  useEffect(() => {
-    if (selectedId) carregarLeads(selectedId);
-    else setLeads([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
 
   async function importarLeads() {
     if (!selectedId) return;
@@ -158,17 +104,27 @@ function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => 
   }
 
   const selected = clientes.find((c) => c.id === selectedId);
-  const painelUrl = selected ? `/painel/${selected.slug}` : null;
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Admin ProspecIA</h1>
-          <button onClick={onLogout} className="text-sm text-neutral-400 hover:text-neutral-200">
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
+        <div className="flex items-center justify-between gap-3">
+          <AdminNav atual="clientes" />
+          <button
+            onClick={sairDoAdmin}
+            className="text-sm text-neutral-500 hover:text-neutral-300"
+          >
             sair
           </button>
         </div>
+
+        <header>
+          <h1 className="text-2xl font-semibold mb-1">Clientes & leads</h1>
+          <p className="text-sm text-neutral-400">
+            Cada cliente recebe um link secreto com os leads que você entregou
+            pra ele.
+          </p>
+        </header>
 
         <section className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 space-y-4">
           <h2 className="text-sm font-medium text-neutral-300">Clientes</h2>
@@ -203,9 +159,12 @@ function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => 
             ))}
           </div>
 
-          {painelUrl && (
+          {selected && (
             <p className="text-xs text-neutral-400 font-mono break-all">
-              Link do painel: <span className="text-orange-400">{painelUrl}</span>
+              Link do painel:{" "}
+              <span className="text-orange-400">
+                https://prospecia.com.br/painel/{selected.slug}
+              </span>
             </p>
           )}
         </section>
@@ -217,14 +176,14 @@ function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => 
                 Importar leads para {selected.nome}
               </h2>
               <p className="text-xs text-neutral-500">
-                Cole o array JSON exportado do n8n. Campos: nome_negocio (obrigatório),
-                endereco, telefone, diagnostico.
+                Cole o array JSON exportado do n8n. Campos: nome_negocio
+                (obrigatório), endereco, telefone, diagnostico.
               </p>
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
                 placeholder='[{"nome_negocio": "...", "endereco": "...", "telefone": "...", "diagnostico": "..."}]'
-                className="w-full min-h-32 rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-xs font-mono outline-none focus:border-orange-500"
+                className="w-full min-h-32 rounded-lg bg-neutral-950 border border-neutral-800 px-3 py-2 text-xs font-mono outline-none focus:border-orange-500"
               />
               <div className="flex items-center gap-3">
                 <button
@@ -233,7 +192,9 @@ function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => 
                 >
                   Adicionar leads
                 </button>
-                {importMsg && <span className="text-xs text-neutral-400">{importMsg}</span>}
+                {importMsg && (
+                  <span className="text-xs text-neutral-400">{importMsg}</span>
+                )}
               </div>
             </section>
 
@@ -250,28 +211,34 @@ function AdminDashboard({ secret, onLogout }: { secret: string; onLogout: () => 
                     <div>
                       <p className="font-medium text-sm">{lead.nome_negocio}</p>
                       {lead.endereco && (
-                        <p className="text-xs text-neutral-500 font-mono">{lead.endereco}</p>
+                        <p className="text-xs text-neutral-500 font-mono">
+                          {lead.endereco}
+                        </p>
                       )}
                     </div>
                     <div className="flex gap-1.5">
-                      {(["novo", "contatado", "convertido"] as LeadStatus[]).map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => alterarStatus(lead.id, s)}
-                          className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${
-                            lead.status === s
-                              ? "bg-orange-500/10 border-orange-500/40 text-orange-400"
-                              : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500"
-                          }`}
-                        >
-                          {STATUS_LABEL[s]}
-                        </button>
-                      ))}
+                      {(["novo", "contatado", "convertido"] as LeadStatus[]).map(
+                        (s) => (
+                          <button
+                            key={s}
+                            onClick={() => alterarStatus(lead.id, s)}
+                            className={`rounded-lg border px-2.5 py-1.5 text-xs font-medium ${
+                              lead.status === s
+                                ? "bg-orange-500/10 border-orange-500/40 text-orange-400"
+                                : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500"
+                            }`}
+                          >
+                            {STATUS_LABEL[s]}
+                          </button>
+                        )
+                      )}
                     </div>
                   </div>
                 ))}
                 {leads.length === 0 && !loadingLeads && (
-                  <p className="text-sm text-neutral-500">Nenhum lead ainda para este cliente.</p>
+                  <p className="text-sm text-neutral-500">
+                    Nenhum lead ainda para este cliente.
+                  </p>
                 )}
               </div>
             </section>
