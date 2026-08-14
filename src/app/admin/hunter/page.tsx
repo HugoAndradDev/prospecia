@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminGate, AdminNav, sairDoAdmin } from "@/components/admin-gate";
+import { DetalheProspect } from "./detalhe-prospect";
 import {
-  FOLLOWUP_DIAS,
   PROSPECT_STAGES,
   STAGE_LABELS,
+  formatarData,
+  motivoFollowUp,
   precisaFollowUp,
   type Prospect,
   type ProspectStage,
@@ -15,43 +17,42 @@ export default function HunterPage() {
   return <AdminGate>{(secret) => <HunterCRM secret={secret} />}</AdminGate>;
 }
 
-type Filtro = "all" | "pendente" | "followup" | "respondeu" | "cliente";
+type Filtro = "all" | "followup" | ProspectStage;
+type Ordenacao = "atividade" | "followup" | "nome" | "entrada";
 
-const FILTROS: { id: Filtro; label: string }[] = [
-  { id: "all", label: "Todos" },
-  { id: "pendente", label: "Pendentes" },
-  { id: "followup", label: "Follow-up" },
-  { id: "respondeu", label: "Responderam" },
-  { id: "cliente", label: "Fecharam" },
+const ORDENACOES: { id: Ordenacao; label: string }[] = [
+  { id: "atividade", label: "Última atividade" },
+  { id: "followup", label: "Follow-up primeiro" },
+  { id: "entrada", label: "Ordem de entrada" },
+  { id: "nome", label: "Nome A–Z" },
 ];
 
 const CORES_FUNIL: Record<ProspectStage, string> = {
   pendente: "text-neutral-300",
-  contatado: "text-neutral-400",
+  contatado: "text-slate-300",
   sem_resposta: "text-amber-400",
   respondeu: "text-blue-400",
   cliente: "text-emerald-400",
   descartado: "text-neutral-600",
 };
 
-const CORES_BOTAO_ATIVO: Record<ProspectStage, string> = {
-  pendente: "bg-neutral-700 text-white",
-  contatado: "bg-neutral-600 text-white",
-  sem_resposta: "bg-amber-600 text-neutral-950",
-  respondeu: "bg-blue-500 text-neutral-950",
-  cliente: "bg-emerald-500 text-neutral-950",
-  descartado: "bg-neutral-700 text-neutral-300",
+const CORES_PONTO: Record<ProspectStage, string> = {
+  pendente: "bg-neutral-600",
+  contatado: "bg-slate-400",
+  sem_resposta: "bg-amber-500",
+  respondeu: "bg-blue-500",
+  cliente: "bg-emerald-500",
+  descartado: "bg-neutral-700",
 };
 
 function HunterCRM({ secret }: { secret: string }) {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [filtro, setFiltro] = useState<Filtro>("all");
   const [busca, setBusca] = useState("");
-  const [abertoId, setAbertoId] = useState<string | null>(null);
-  const [painelImport, setPainelImport] = useState(false);
-  const [textoImport, setTextoImport] = useState("");
-  const [msgImport, setMsgImport] = useState("");
+  const [ordenacao, setOrdenacao] = useState<Ordenacao>("atividade");
+  const [painel, setPainel] = useState<"import" | "novo" | null>(null);
   const [toast, setToast] = useState("");
 
   const mostrarToast = useCallback((msg: string) => {
@@ -63,8 +64,7 @@ function HunterCRM({ secret }: { secret: string }) {
     const res = await fetch("/api/admin/prospects", {
       headers: { "x-admin-secret": secret },
     });
-    const data = await res.json();
-    if (res.ok) setProspects(data.prospects);
+    if (res.ok) setProspects((await res.json()).prospects);
     setCarregando(false);
   }, [secret]);
 
@@ -72,54 +72,11 @@ function HunterCRM({ secret }: { secret: string }) {
     carregar();
   }, [carregar]);
 
-  async function importar() {
-    setMsgImport("");
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(textoImport);
-      if (!Array.isArray(parsed)) throw new Error("não é uma lista");
-    } catch {
-      setMsgImport("JSON inválido — confira se colou o array completo.");
-      return;
-    }
-    const res = await fetch("/api/admin/prospects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
-      body: JSON.stringify(parsed),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setMsgImport(data.error || "Falha ao importar.");
-      return;
-    }
-    setMsgImport(
-      `${data.adicionados} novo(s) adicionado(s), ${data.jaExistiam} já existia(m).`
-    );
-    setTextoImport("");
-    carregar();
-  }
-
-  async function mudarStage(p: Prospect, stage: ProspectStage) {
-    // Clicar de novo no estágio atual devolve o prospect para pendente.
-    const novo = p.stage === stage ? "pendente" : stage;
-    const res = await fetch(`/api/admin/prospects/${p.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
-      body: JSON.stringify({ stage: novo }),
-    });
-    if (res.ok) {
-      const { prospect } = await res.json();
-      setProspects((atual) =>
-        atual.map((x) => (x.id === prospect.id ? prospect : x))
-      );
-      mostrarToast(`${STAGE_LABELS[novo as ProspectStage]} marcado`);
-    }
-  }
-
   const contagens = useMemo(() => {
-    const c = Object.fromEntries(
-      PROSPECT_STAGES.map((s) => [s, 0])
-    ) as Record<ProspectStage, number>;
+    const c = Object.fromEntries(PROSPECT_STAGES.map((s) => [s, 0])) as Record<
+      ProspectStage,
+      number
+    >;
     for (const p of prospects) c[p.stage]++;
     return c;
   }, [prospects]);
@@ -130,25 +87,81 @@ function HunterCRM({ secret }: { secret: string }) {
   );
 
   const abordados = prospects.length - contagens.pendente;
+  const taxaResposta = abordados
+    ? Math.round(((contagens.respondeu + contagens.cliente) / abordados) * 100)
+    : 0;
+  const taxaFechamento = abordados
+    ? Math.round((contagens.cliente / abordados) * 100)
+    : 0;
 
-  const filtrados = useMemo(() => {
+  const visiveis = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return prospects.filter((p) => {
-      if (filtro === "pendente" && p.stage !== "pendente") return false;
+    const lista = prospects.filter((p) => {
       if (filtro === "followup" && !precisaFollowUp(p)) return false;
-      if (filtro === "respondeu" && p.stage !== "respondeu") return false;
-      if (filtro === "cliente" && p.stage !== "cliente") return false;
+      if (filtro !== "all" && filtro !== "followup" && p.stage !== filtro)
+        return false;
       if (q) {
-        const alvo = `${p.nome} ${p.endereco ?? ""}`.toLowerCase();
+        const alvo =
+          `${p.nome} ${p.endereco ?? ""} ${p.telefone ?? ""} ${p.email ?? ""}`.toLowerCase();
         if (!alvo.includes(q)) return false;
       }
       return true;
     });
-  }, [prospects, filtro, busca]);
+
+    const porData = (a: string | null, b: string | null) =>
+      new Date(b ?? 0).getTime() - new Date(a ?? 0).getTime();
+
+    return lista.sort((a, b) => {
+      switch (ordenacao) {
+        case "nome":
+          return a.nome.localeCompare(b.nome, "pt-BR");
+        case "entrada":
+          return porData(b.criado_em, a.criado_em);
+        case "followup": {
+          const fa = precisaFollowUp(a) ? 0 : 1;
+          const fb = precisaFollowUp(b) ? 0 : 1;
+          if (fa !== fb) return fa - fb;
+          return porData(a.atualizado_em, b.atualizado_em);
+        }
+        default:
+          return porData(a.atualizado_em, b.atualizado_em);
+      }
+    });
+  }, [prospects, filtro, busca, ordenacao]);
+
+  const selecionado = prospects.find((p) => p.id === selecionadoId) ?? null;
+
+  function aplicarAtualizacao(atualizado: Prospect) {
+    setProspects((atual) =>
+      atual.map((p) => (p.id === atualizado.id ? atualizado : p))
+    );
+  }
+
+  function removerDaLista(id: string) {
+    setProspects((atual) => atual.filter((p) => p.id !== id));
+    setSelecionadoId(null);
+  }
+
+  async function baixarBackup() {
+    const res = await fetch("/api/admin/backup", {
+      headers: { "x-admin-secret": secret },
+    });
+    if (!res.ok) return mostrarToast("Falha ao gerar backup");
+    const blob = new Blob([JSON.stringify(await res.json(), null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hunter-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    mostrarToast("Backup baixado");
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6">
         <div className="flex items-center justify-between gap-3">
           <AdminNav atual="hunter" />
           <button
@@ -159,165 +172,231 @@ function HunterCRM({ secret }: { secret: string }) {
           </button>
         </div>
 
-        <header>
-          <p className="text-xs font-mono uppercase tracking-wider text-orange-500 mb-2">
-            ProspecIA Hunter
-          </p>
-          <h1 className="text-2xl font-semibold mb-1">Painel de abordagem</h1>
-          <p className="text-sm text-neutral-400 mb-5">
-            Agências e web designers para você abordar — uso interno, nenhum
-            cliente vê isso.
-          </p>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
-            <div className="flex justify-between items-baseline mb-2.5">
-              <p className="text-xl font-semibold">
-                {abordados}{" "}
-                <span className="text-base font-medium text-neutral-600">
-                  / {prospects.length} abordadas
-                </span>
-              </p>
-              <p className="text-xs font-mono text-neutral-500">
-                {carregando
-                  ? "carregando…"
-                  : contagens.pendente === 0 && prospects.length > 0
-                    ? "lote finalizado"
-                    : `${contagens.pendente} restantes`}
-              </p>
-            </div>
-            <div className="h-1.5 bg-neutral-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                style={{
-                  width: prospects.length
-                    ? `${(abordados / prospects.length) * 100}%`
-                    : "0%",
-                }}
-              />
-            </div>
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="mb-1.5 font-mono text-xs uppercase tracking-wider text-orange-500">
+              ProspecIA Hunter
+            </p>
+            <h1 className="text-2xl font-semibold">Prospecção de agências</h1>
           </div>
-
-          <div className="mt-3 bg-neutral-900 border border-neutral-800 rounded-xl p-3 flex overflow-x-auto">
-            {PROSPECT_STAGES.map((s) => (
-              <button
-                key={s}
-                onClick={() =>
-                  setFiltro(
-                    s === "pendente" || s === "respondeu" || s === "cliente"
-                      ? (s as Filtro)
-                      : "all"
-                  )
-                }
-                className="flex-1 min-w-[80px] text-center px-1 py-1.5 rounded-lg hover:bg-neutral-800 border-r border-neutral-800 last:border-r-0"
-              >
-                <p className={`text-lg font-semibold ${CORES_FUNIL[s]}`}>
-                  {contagens[s]}
-                </p>
-                <p className="text-[10px] font-mono uppercase tracking-wide text-neutral-600 mt-0.5">
-                  {STAGE_LABELS[s]}
-                </p>
-              </button>
-            ))}
-            {totalFollowUp > 0 && (
-              <button
-                onClick={() => setFiltro("followup")}
-                className="flex-1 min-w-[80px] text-center px-1 py-1.5 rounded-lg hover:bg-neutral-800 border-l border-neutral-800"
-              >
-                <p className="text-lg font-semibold text-amber-400">
-                  {totalFollowUp}
-                </p>
-                <p className="text-[10px] font-mono uppercase tracking-wide text-neutral-600 mt-0.5">
-                  Follow-up
-                </p>
-              </button>
-            )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setPainel(painel === "novo" ? null : "novo")}
+              className="rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2 text-sm text-neutral-300 hover:border-neutral-600"
+            >
+              + Adicionar à mão
+            </button>
+            <button
+              onClick={() => setPainel(painel === "import" ? null : "import")}
+              className="rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2 text-sm text-neutral-300 hover:border-neutral-600"
+            >
+              ⇪ Importar lote
+            </button>
+            <button
+              onClick={baixarBackup}
+              className="rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2 text-sm text-neutral-300 hover:border-neutral-600"
+            >
+              ⇩ Backup
+            </button>
           </div>
         </header>
 
-        <div>
-          <button
-            onClick={() => setPainelImport((v) => !v)}
-            className="rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-300 px-3.5 py-2 text-sm hover:border-neutral-600"
-          >
-            + Importar novo lote
-          </button>
-
-          {painelImport && (
-            <div className="mt-3 bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
-              <p className="text-xs text-neutral-500">
-                Cole o JSON exportado do Hunter (n8n), do jeito que ele sai.
-                Quem já está na lista não duplica e mantém o status.
-              </p>
-              <textarea
-                value={textoImport}
-                onChange={(e) => setTextoImport(e.target.value)}
-                placeholder='[{"placeId": "...", "nome": "...", "copyB2B": "..."}]'
-                className="w-full min-h-32 rounded-lg bg-neutral-950 border border-neutral-800 px-3 py-2 text-xs font-mono outline-none focus:border-orange-500"
-              />
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={importar}
-                  className="rounded-lg bg-orange-500 text-neutral-950 font-medium px-4 py-2 text-sm hover:opacity-90"
-                >
-                  Adicionar
-                </button>
-                {msgImport && (
-                  <span className="text-xs text-neutral-400">{msgImport}</span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex gap-2 flex-wrap">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome ou endereço…"
-            className="flex-1 min-w-44 rounded-lg bg-neutral-900 border border-neutral-800 px-3.5 py-2 text-sm outline-none focus:border-orange-500"
+        {painel === "import" && (
+          <PainelImport
+            secret={secret}
+            onPronto={carregar}
+            onToast={mostrarToast}
           />
-          <div className="flex gap-1.5 flex-wrap">
-            {FILTROS.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setFiltro(f.id)}
-                className={`rounded-lg border px-3 py-2 text-[13px] font-medium ${
-                  filtro === f.id
-                    ? "bg-orange-500/10 border-orange-500/40 text-orange-400"
-                    : "bg-neutral-900 border-neutral-800 text-neutral-400 hover:border-neutral-600"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
+        {painel === "novo" && (
+          <FormNovoProspect
+            secret={secret}
+            onCriado={(p) => {
+              setProspects((atual) => [...atual, p]);
+              setSelecionadoId(p.id);
+              setPainel(null);
+              mostrarToast("Prospect adicionado");
+            }}
+            onToast={mostrarToast}
+          />
+        )}
 
-        <div className="space-y-2.5">
-          {filtrados.map((p, i) => (
-            <CardProspect
-              key={p.id}
-              prospect={p}
-              indice={i + 1}
-              aberto={abertoId === p.id}
-              onToggle={() => setAbertoId(abertoId === p.id ? null : p.id)}
-              onStage={(s) => mudarStage(p, s)}
-              onCopiar={() => mostrarToast("Mensagem copiada")}
-            />
+        <section className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Metrica titulo="Na base" valor={String(prospects.length)} />
+          <Metrica
+            titulo="Abordadas"
+            valor={`${abordados}`}
+            detalhe={`${contagens.pendente} na fila`}
+          />
+          <Metrica
+            titulo="Taxa de resposta"
+            valor={`${taxaResposta}%`}
+            detalhe={`${contagens.respondeu + contagens.cliente} de ${abordados}`}
+          />
+          <Metrica
+            titulo="Fechamento"
+            valor={`${taxaFechamento}%`}
+            detalhe={`${contagens.cliente} cliente(s)`}
+          />
+        </section>
+
+        <section className="flex overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900 p-2.5">
+          {PROSPECT_STAGES.map((s) => (
+            <button
+              key={s}
+              onClick={() => setFiltro(filtro === s ? "all" : s)}
+              className={`min-w-[86px] flex-1 rounded-lg border-r border-neutral-800 px-1 py-1.5 text-center last:border-r-0 ${
+                filtro === s ? "bg-neutral-800" : "hover:bg-neutral-800/50"
+              }`}
+            >
+              <p className={`text-lg font-semibold ${CORES_FUNIL[s]}`}>
+                {contagens[s]}
+              </p>
+              <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-neutral-600">
+                {STAGE_LABELS[s]}
+              </p>
+            </button>
           ))}
-
-          {!carregando && filtrados.length === 0 && (
-            <p className="text-sm text-neutral-500 text-center py-14">
-              {prospects.length === 0
-                ? 'Nenhuma agência ainda — clique em "Importar novo lote" para começar.'
-                : "Nenhum resultado com esse filtro."}
+          <button
+            onClick={() => setFiltro(filtro === "followup" ? "all" : "followup")}
+            className={`min-w-[86px] flex-1 rounded-lg border-l border-neutral-800 px-1 py-1.5 text-center ${
+              filtro === "followup" ? "bg-neutral-800" : "hover:bg-neutral-800/50"
+            }`}
+          >
+            <p
+              className={`text-lg font-semibold ${
+                totalFollowUp > 0 ? "text-amber-400" : "text-neutral-600"
+              }`}
+            >
+              {totalFollowUp}
             </p>
-          )}
+            <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-neutral-600">
+              Follow-up
+            </p>
+          </button>
+        </section>
+
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+          <section
+            className={`space-y-2.5 ${selecionado ? "hidden lg:block" : ""}`}
+          >
+            <div className="flex gap-2">
+              <input
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar nome, endereço, telefone…"
+                className="min-w-0 flex-1 rounded-lg border border-neutral-800 bg-neutral-900 px-3.5 py-2 text-sm outline-none focus:border-orange-500"
+              />
+              <select
+                value={ordenacao}
+                onChange={(e) => setOrdenacao(e.target.value as Ordenacao)}
+                className="rounded-lg border border-neutral-800 bg-neutral-900 px-2.5 py-2 text-xs text-neutral-300 outline-none focus:border-orange-500"
+              >
+                {ORDENACOES.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between px-0.5">
+              <p className="font-mono text-[11px] text-neutral-600">
+                {visiveis.length} de {prospects.length}
+              </p>
+              {filtro !== "all" && (
+                <button
+                  onClick={() => setFiltro("all")}
+                  className="font-mono text-[11px] text-orange-400 hover:underline"
+                >
+                  limpar filtro
+                </button>
+              )}
+            </div>
+
+            <ul className="space-y-1.5">
+              {visiveis.map((p) => {
+                const motivo = motivoFollowUp(p);
+                return (
+                  <li key={p.id}>
+                    <button
+                      onClick={() => setSelecionadoId(p.id)}
+                      className={`w-full rounded-lg border px-3.5 py-3 text-left transition-colors ${
+                        selecionadoId === p.id
+                          ? "border-orange-500/50 bg-orange-500/[0.07]"
+                          : "border-neutral-800 bg-neutral-900 hover:border-neutral-700"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <span
+                          className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${CORES_PONTO[p.stage]}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {p.nome}
+                          </p>
+                          {p.endereco && (
+                            <p className="truncate font-mono text-[11px] text-neutral-600">
+                              {p.endereco}
+                            </p>
+                          )}
+                          <p className="mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[10.5px] text-neutral-600">
+                            <span>{STAGE_LABELS[p.stage]}</span>
+                            {motivo && (
+                              <span className="text-amber-400">
+                                ⏰{" "}
+                                {motivo === "agendado"
+                                  ? `retorno ${formatarData(p.follow_up_em)}`
+                                  : "parado"}
+                              </span>
+                            )}
+                            {!motivo && p.follow_up_em && (
+                              <span className="text-neutral-500">
+                                → {formatarData(p.follow_up_em)}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {!carregando && visiveis.length === 0 && (
+              <p className="py-12 text-center text-sm text-neutral-500">
+                {prospects.length === 0
+                  ? "Nenhuma agência ainda — importe um lote ou adicione à mão."
+                  : "Nada encontrado com esse filtro."}
+              </p>
+            )}
+          </section>
+
+          <section className={selecionado ? "" : "hidden lg:block"}>
+            {selecionado ? (
+              <DetalheProspect
+                prospect={selecionado}
+                secret={secret}
+                onAtualizar={aplicarAtualizacao}
+                onExcluir={removerDaLista}
+                onFechar={() => setSelecionadoId(null)}
+                onToast={mostrarToast}
+              />
+            ) : (
+              <div className="flex h-full min-h-64 items-center justify-center rounded-xl border border-dashed border-neutral-800">
+                <p className="px-6 text-center text-sm text-neutral-600">
+                  Escolha uma agência na lista para ver o histórico e trabalhar
+                  o contato.
+                </p>
+              </div>
+            )}
+          </section>
         </div>
       </div>
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-neutral-800 border border-emerald-500/40 text-emerald-400 px-4 py-2.5 rounded-lg text-sm font-medium shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-lg border border-emerald-500/40 bg-neutral-800 px-4 py-2.5 text-sm font-medium text-emerald-400 shadow-lg">
           {toast}
         </div>
       )}
@@ -325,151 +404,172 @@ function HunterCRM({ secret }: { secret: string }) {
   );
 }
 
-function CardProspect({
-  prospect: p,
-  indice,
-  aberto,
-  onToggle,
-  onStage,
-  onCopiar,
+function Metrica({
+  titulo,
+  valor,
+  detalhe,
 }: {
-  prospect: Prospect;
-  indice: number;
-  aberto: boolean;
-  onToggle: () => void;
-  onStage: (s: ProspectStage) => void;
-  onCopiar: () => void;
+  titulo: string;
+  valor: string;
+  detalhe?: string;
 }) {
-  const followUp = precisaFollowUp(p);
-  const temWhats = p.link_whatsapp?.startsWith("http");
-  const hrefWhats = temWhats
-    ? `${p.link_whatsapp}?text=${encodeURIComponent(p.copy_b2b ?? "")}`
-    : undefined;
-
   return (
-    <div
-      className={`bg-neutral-900 border rounded-xl overflow-hidden ${
-        p.stage !== "pendente" ? "border-emerald-500/30" : "border-neutral-800"
-      }`}
-    >
-      <button
-        onClick={onToggle}
-        className="w-full flex items-start gap-3.5 p-4 text-left hover:bg-neutral-800/40"
-      >
-        <span
-          className={`font-mono text-xs pt-1 min-w-6 ${
-            p.stage !== "pendente" ? "text-emerald-500" : "text-neutral-600"
-          }`}
-        >
-          {String(indice).padStart(2, "0")}
-        </span>
-        <span className="flex-1 min-w-0">
-          <span className="flex items-center gap-2 flex-wrap font-medium text-[15px] mb-1">
-            <span
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                p.stage !== "pendente" ? "bg-emerald-500" : "bg-neutral-600"
-              }`}
-            />
-            {p.nome}
-            {p.aberto_agora === true && (
-              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-400">
-                ● aberto agora
-              </span>
-            )}
-            {followUp && (
-              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-400">
-                ⏰ follow-up
-              </span>
-            )}
-          </span>
-          {p.endereco && (
-            <span className="block font-mono text-[11.5px] text-neutral-500 leading-relaxed">
-              {p.endereco}
-            </span>
-          )}
-          {p.melhor_horario_contato && (
-            <span className="block font-mono text-[11.5px] text-orange-500/80 mt-0.5">
-              ⏰ Melhor horário: {p.melhor_horario_contato}
-            </span>
-          )}
-        </span>
-        <span
-          className={`text-neutral-600 text-xs pt-1 transition-transform ${
-            aberto ? "rotate-90" : ""
-          }`}
-        >
-          ▶
-        </span>
-      </button>
-
-      {aberto && (
-        <div className="px-4 pb-4 pl-[54px] space-y-3">
-          {p.copy_b2b && (
-            <p className="text-[13.5px] leading-relaxed bg-neutral-950 border border-neutral-800 rounded-lg p-3 whitespace-pre-wrap">
-              {p.copy_b2b}
-            </p>
-          )}
-
-          {followUp && (
-            <p className="text-[11.5px] text-amber-400 bg-amber-500/[0.08] border border-amber-500/25 rounded-lg px-2.5 py-2">
-              ⏰ Já se passaram {FOLLOWUP_DIAS}+ dias sem retorno — bom momento
-              pra reforçar o contato.
-            </p>
-          )}
-
-          <div className="flex gap-2 flex-wrap items-center">
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(p.copy_b2b ?? "");
-                onCopiar();
-              }}
-              className="rounded-lg bg-neutral-800 border border-neutral-700 px-3.5 py-2 text-[13px] font-semibold hover:opacity-85"
-            >
-              📋 Copiar mensagem
-            </button>
-            {hrefWhats ? (
-              <a
-                href={hrefWhats}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-lg bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 px-3.5 py-2 text-[13px] font-semibold hover:opacity-85"
-              >
-                💬 Abrir no WhatsApp
-              </a>
-            ) : (
-              <span className="text-xs text-neutral-600 italic">
-                Sem WhatsApp — abordar por Instagram DM
-              </span>
-            )}
-          </div>
-
-          <div className="flex gap-1.5 flex-wrap">
-            {PROSPECT_STAGES.filter((s) => s !== "pendente").map((s) => (
-              <button
-                key={s}
-                onClick={() => onStage(s)}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold border transition-colors ${
-                  p.stage === s
-                    ? `border-transparent ${CORES_BOTAO_ATIVO[s]}`
-                    : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-500"
-                }`}
-              >
-                {STAGE_LABELS[s]}
-              </button>
-            ))}
-          </div>
-
-          <p className="font-mono text-[11px] text-neutral-600">
-            último status em{" "}
-            {new Date(p.atualizado_em).toLocaleString("pt-BR", {
-              day: "2-digit",
-              month: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
-        </div>
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-3">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-neutral-600">
+        {titulo}
+      </p>
+      <p className="mt-1 text-xl font-semibold">{valor}</p>
+      {detalhe && (
+        <p className="mt-0.5 font-mono text-[10.5px] text-neutral-600">
+          {detalhe}
+        </p>
       )}
     </div>
+  );
+}
+
+function PainelImport({
+  secret,
+  onPronto,
+  onToast,
+}: {
+  secret: string;
+  onPronto: () => void;
+  onToast: (m: string) => void;
+}) {
+  const [texto, setTexto] = useState("");
+  const [msg, setMsg] = useState("");
+
+  async function importar() {
+    setMsg("");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(texto);
+      if (!Array.isArray(parsed)) throw new Error("não é uma lista");
+    } catch {
+      setMsg("JSON inválido — confira se colou o array completo.");
+      return;
+    }
+    const res = await fetch("/api/admin/prospects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify(parsed),
+    });
+    const data = await res.json();
+    if (!res.ok) return setMsg(data.error || "Falha ao importar.");
+    setMsg(
+      `${data.adicionados} novo(s) adicionado(s), ${data.jaExistiam} já existia(m).`
+    );
+    setTexto("");
+    onPronto();
+    onToast("Lote importado");
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <p className="text-xs text-neutral-500">
+        Cole o JSON exportado do Hunter (n8n), do jeito que ele sai. Quem já
+        está na lista não duplica e mantém status, notas e follow-up.
+      </p>
+      <textarea
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        placeholder='[{"placeId": "...", "nome": "...", "copyB2B": "..."}]'
+        className="min-h-32 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 font-mono text-xs outline-none focus:border-orange-500"
+      />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={importar}
+          className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:opacity-90"
+        >
+          Adicionar
+        </button>
+        {msg && <span className="text-xs text-neutral-400">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+function FormNovoProspect({
+  secret,
+  onCriado,
+  onToast,
+}: {
+  secret: string;
+  onCriado: (p: Prospect) => void;
+  onToast: (m: string) => void;
+}) {
+  const [form, setForm] = useState({
+    nome: "",
+    endereco: "",
+    telefone: "",
+    email: "",
+    instagram: "",
+    link_whatsapp: "",
+    copyB2B: "",
+  });
+
+  const campos: [keyof typeof form, string][] = [
+    ["nome", "Nome da agência *"],
+    ["telefone", "Telefone"],
+    ["instagram", "Instagram"],
+    ["email", "E-mail"],
+    ["endereco", "Endereço"],
+    ["link_whatsapp", "Link do WhatsApp"],
+  ];
+
+  async function criar(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.nome.trim()) return;
+    const res = await fetch("/api/admin/prospects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+      body: JSON.stringify(form),
+    });
+    if (!res.ok) return onToast("Falha ao adicionar");
+    onCriado((await res.json()).prospect);
+  }
+
+  return (
+    <form
+      onSubmit={criar}
+      className="space-y-3 rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+    >
+      <p className="text-xs text-neutral-500">
+        Para agências que você achou fora do Hunter — Instagram, indicação,
+        evento.
+      </p>
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        {campos.map(([campo, rotulo]) => (
+          <label key={campo} className="block">
+            <span className="mb-1 block text-[11px] text-neutral-500">
+              {rotulo}
+            </span>
+            <input
+              value={form[campo]}
+              onChange={(e) => setForm({ ...form, [campo]: e.target.value })}
+              className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-2 text-xs outline-none focus:border-orange-500"
+            />
+          </label>
+        ))}
+      </div>
+      <label className="block">
+        <span className="mb-1 block text-[11px] text-neutral-500">
+          Mensagem de abordagem
+        </span>
+        <textarea
+          value={form.copyB2B}
+          onChange={(e) => setForm({ ...form, copyB2B: e.target.value })}
+          className="min-h-20 w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-2 text-xs outline-none focus:border-orange-500"
+        />
+      </label>
+      <button
+        type="submit"
+        disabled={!form.nome.trim()}
+        className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-neutral-950 hover:opacity-90 disabled:opacity-40"
+      >
+        Adicionar prospect
+      </button>
+    </form>
   );
 }

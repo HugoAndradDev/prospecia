@@ -47,3 +47,10 @@ Gemini_Generated_Image_*.png
 /prospecia-backup/
 /_ref/
 .claude/settings.local.json
+
+# relatorios do Lighthouse
+lh.json
+lighthouse*.json
+
+.vercel
+.env*

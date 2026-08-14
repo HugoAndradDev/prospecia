@@ -1,26 +1,173 @@
 @import "tailwindcss";
 
+/*
+ * Tema das telas do cliente (landing, login, /app).
+ *
+ * São TRÊS estados, não dois:
+ *   data-theme="light"  -> o cliente escolheu claro
+ *   data-theme="dark"   -> o cliente escolheu escuro
+ *   sem atributo        -> seguir o sistema
+ *
+ * O caso "seguir o sistema" é resolvido por CSS, não por JavaScript: o
+ * navegador reavalia a media query sozinho quando o aparelho troca de tema,
+ * sem depender de listener nenhum.
+ *
+ * ATENÇÃO: a paleta escura aparece em DOIS blocos abaixo (o @media e o
+ * [data-theme="dark"]). Mexeu em um, mexa no outro.
+ *
+ * As telas internas (/admin e /admin/hunter) não usam estes tokens — são
+ * escuras fixas, com classes neutral-* diretas.
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  --fundo: #faf9f7;
+  --superficie: #ffffff;
+  --superficie-2: #f4f2ef;
+  --borda: #e4e1db;
+  --borda-forte: #d3cfc7;
+
+  --texto: #1b1917;
+  --texto-suave: #5b554c;
+  /* Estes são mais escuros do que "parecem certos" de propósito: no fundo
+     claro, os tons originais ficavam abaixo de 4.5:1 e viravam texto lavado
+     em tela de celular sob luz do dia. Calibrados contra a superfície cinza
+     (--superficie-2), que é a pior das duas, não contra o branco. */
+  --texto-fraco: #6f6862;
+
+  --marca: #bd4712;
+  --marca-contraste: #ffffff;
+  --marca-fraca: #bd471214;
+  --marca-borda: #bd47124d;
+
+  --novo: #665f59;
+  --novo-fraco: #665f5914;
+  --contatado: #1d6fa5;
+  --contatado-fraco: #1d6fa514;
+  --convertido: #2f7d5a;
+  --convertido-fraco: #2f7d5a14;
+
+  --alerta: #856013;
+  --alerta-fraco: #85601314;
+  --erro: #b3261e;
+  --erro-fraco: #b3261e14;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
+/* Sistema em escuro E o cliente não pediu claro explicitamente. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --fundo: #0a0a0a;
+    --superficie: #171717;
+    --superficie-2: #232323;
+    --borda: #2a2a2a;
+    --borda-forte: #3d3d3d;
+
+    --texto: #ededed;
+    --texto-suave: #a6a6a6;
+    --texto-fraco: #6e6e6e;
+
+    --marca: #ff7a3d;
+    --marca-contraste: #1a0d05;
+    --marca-fraca: #ff7a3d1f;
+    --marca-borda: #ff7a3d59;
+
+    --novo: #a1a1a1;
+    --novo-fraco: #a1a1a11f;
+    --contatado: #5aa9ff;
+    --contatado-fraco: #5aa9ff1f;
+    --convertido: #4cb586;
+    --convertido-fraco: #4cb5861f;
+
+    --alerta: #d9a53f;
+    --alerta-fraco: #d9a53f1f;
+    --erro: #ff6b63;
+    --erro-fraco: #ff6b631f;
   }
 }
 
+/* Escolha explícita do cliente vence o sistema, nos dois sentidos. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fundo: #0a0a0a;
+  --superficie: #171717;
+  --superficie-2: #232323;
+  --borda: #2a2a2a;
+  --borda-forte: #3d3d3d;
+
+  --texto: #ededed;
+  --texto-suave: #a6a6a6;
+  --texto-fraco: #6e6e6e;
+
+  --marca: #ff7a3d;
+  --marca-contraste: #1a0d05;
+  --marca-fraca: #ff7a3d1f;
+  --marca-borda: #ff7a3d59;
+
+  --novo: #a1a1a1;
+  --novo-fraco: #a1a1a11f;
+  --contatado: #5aa9ff;
+  --contatado-fraco: #5aa9ff1f;
+  --convertido: #4cb586;
+  --convertido-fraco: #4cb5861f;
+
+  --alerta: #d9a53f;
+  --alerta-fraco: #d9a53f1f;
+  --erro: #ff6b63;
+  --erro-fraco: #ff6b631f;
+}
+
+@theme inline {
+  --color-fundo: var(--fundo);
+  --color-superficie: var(--superficie);
+  --color-superficie-2: var(--superficie-2);
+  --color-borda: var(--borda);
+  --color-borda-forte: var(--borda-forte);
+
+  --color-texto: var(--texto);
+  --color-texto-suave: var(--texto-suave);
+  --color-texto-fraco: var(--texto-fraco);
+
+  --color-marca: var(--marca);
+  --color-marca-contraste: var(--marca-contraste);
+  --color-marca-fraca: var(--marca-fraca);
+  --color-marca-borda: var(--marca-borda);
+
+  --color-novo: var(--novo);
+  --color-novo-fraco: var(--novo-fraco);
+  --color-contatado: var(--contatado);
+  --color-contatado-fraco: var(--contatado-fraco);
+  --color-convertido: var(--convertido);
+  --color-convertido-fraco: var(--convertido-fraco);
+
+  --color-alerta: var(--alerta);
+  --color-alerta-fraco: var(--alerta-fraco);
+  --color-erro: var(--erro);
+  --color-erro-fraco: var(--erro-fraco);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+/* Enquanto arrasta um card, o navegador não deve tentar rolar a página. */
+[data-arrastavel] {
+  touch-action: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
