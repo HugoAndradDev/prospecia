@@ -156,10 +156,10 @@ export function FichaDiagnostico() {
        */}
       <article className="-mx-5 overflow-hidden border-y border-borda-forte bg-superficie shadow-[0_1px_2px_rgb(0_0_0_/_0.04),0_16px_40px_-12px_rgb(0_0_0_/_0.12)] sm:mx-0 sm:rounded-2xl sm:border-x">
         <header className="flex items-center justify-between gap-3 border-b border-borda bg-superficie-2 px-5 py-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-texto-fraco">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-texto-fraco">
             Diagnóstico entregue
           </span>
-          <span className="rounded-md bg-novo-fraco px-2 py-0.5 text-[10px] font-semibold text-novo">
+          <span className="rounded-md bg-novo-fraco px-2 py-0.5 text-[11px] font-semibold text-novo">
             Novo
           </span>
         </header>
@@ -167,19 +167,19 @@ export function FichaDiagnostico() {
         <dl className="divide-y divide-borda">
           {linhas.map(([rotulo, valor]) => (
             <div key={rotulo} className="flex gap-4 px-5 py-3">
-              <dt className="w-20 shrink-0 text-[12px] text-texto-fraco">
+              <dt className="w-20 shrink-0 text-[14px] text-texto-fraco">
                 {rotulo}
               </dt>
-              <dd className="min-w-0 flex-1 text-[13.5px]">{valor}</dd>
+              <dd className="min-w-0 flex-1 text-[14px]">{valor}</dd>
             </div>
           ))}
         </dl>
 
         <div className="border-t border-borda px-5 py-4">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-texto-fraco">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-texto-fraco">
             O que está faltando
           </p>
-          <p className="text-[13.5px] leading-relaxed text-texto-suave">
+          <p className="text-[16px] leading-relaxed text-texto-suave">
             Não tem site. No Google aparece só o pino do Maps, sem cardápio, sem
             horário de funcionamento e sem link para pedido. Quem procura
             &ldquo;padaria perto de mim&rdquo; às sete da manhã encontra o
@@ -192,10 +192,12 @@ export function FichaDiagnostico() {
             clímax da página inteira. Um degrau de tipo acima do resto da
             ficha, de propósito. */}
         <div className="border-t-2 border-marca bg-marca-fraca px-5 py-5">
-          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-marca">
+          <p className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-marca">
             Sua primeira mensagem, já escrita
           </p>
-          <p className="text-[15px] leading-relaxed">
+          {/* 17 contra os 16 do resto da ficha: o clímax continua um degrau
+              acima depois da escala nova, como era a intenção. */}
+          <p className="text-[17px] leading-relaxed">
             &ldquo;Bom dia! Passei em frente à padaria de vocês essa semana. Fui
             procurar o cardápio no Google e não achei nada além do endereço.
             Vocês perdem pedido por causa disso, principalmente de gente que
@@ -206,7 +208,7 @@ export function FichaDiagnostico() {
         </div>
       </article>
 
-      <p className="mt-3 px-1 text-[12.5px] leading-relaxed text-texto-fraco">
+      <p className="mt-3 px-1 text-[14px] leading-relaxed text-texto-fraco">
         Esse texto vai inteiro para o WhatsApp do negócio, com um toque no
         painel.
       </p>
