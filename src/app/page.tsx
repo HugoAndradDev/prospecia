@@ -259,10 +259,16 @@ function ComoFunciona() {
 
 function OQueChega() {
   return (
-    <section className="border-t border-borda">
+    /*
+     * O único fundo diferente da página inteira, atravessando de ponta a
+     * ponta. Toda a ousadia visual gasta em um lugar só, e o lugar escolhido é
+     * o argumento mais forte: o artefato real. Sem border-t aqui, porque a
+     * troca de fundo já separa a seção melhor do que uma linha separaria.
+     */
+    <section className="bg-superficie-2">
       {/* Virada: é o argumento mais forte da página, mostra o artefato real. */}
       <div className={`mx-auto max-w-6xl px-5 ${RESPIRO.virada}`}>
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:gap-16">
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] lg:gap-16">
           <div className="lg:sticky lg:top-12 lg:self-start">
             <Eyebrow>Prova</Eyebrow>
             <h2 className="font-display text-[28px] font-semibold leading-[1.15] tracking-[-0.015em] text-balance sm:text-[34px]">
