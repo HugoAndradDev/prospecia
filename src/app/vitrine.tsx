@@ -106,52 +106,61 @@ export function FichaDiagnostico() {
   ];
 
   return (
-    <article className="overflow-hidden rounded-xl border border-borda bg-superficie">
-      <header className="flex items-center justify-between gap-3 border-b border-borda bg-superficie-2 px-4 py-2.5">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-texto-fraco">
-          Diagnóstico entregue
-        </span>
-        <span className="rounded-md bg-novo-fraco px-2 py-0.5 text-[10px] font-semibold text-novo">
-          Novo
-        </span>
-      </header>
+    <div>
+      <article className="overflow-hidden rounded-xl border border-borda bg-superficie shadow-sm">
+        <header className="flex items-center justify-between gap-3 border-b border-borda bg-superficie-2 px-5 py-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-texto-fraco">
+            Diagnóstico entregue
+          </span>
+          <span className="rounded-md bg-novo-fraco px-2 py-0.5 text-[10px] font-semibold text-novo">
+            Novo
+          </span>
+        </header>
 
-      <dl className="divide-y divide-borda">
-        {linhas.map(([rotulo, valor]) => (
-          <div key={rotulo} className="flex gap-3 px-4 py-2.5">
-            <dt className="w-20 shrink-0 text-[12px] text-texto-fraco">
-              {rotulo}
-            </dt>
-            <dd className="min-w-0 flex-1 text-[13px]">{valor}</dd>
-          </div>
-        ))}
-      </dl>
+        <dl className="divide-y divide-borda">
+          {linhas.map(([rotulo, valor]) => (
+            <div key={rotulo} className="flex gap-4 px-5 py-3">
+              <dt className="w-20 shrink-0 text-[12px] text-texto-fraco">
+                {rotulo}
+              </dt>
+              <dd className="min-w-0 flex-1 text-[13.5px]">{valor}</dd>
+            </div>
+          ))}
+        </dl>
 
-      <div className="border-t border-borda px-4 py-3">
-        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-texto-fraco">
-          O que está faltando
-        </p>
-        <p className="text-[13.5px] leading-relaxed text-texto-suave">
-          Não tem site. No Google aparece só o pino do Maps, sem cardápio, sem
-          horário de funcionamento e sem link para pedido. Quem procura
-          &ldquo;padaria perto de mim&rdquo; às sete da manhã encontra o
-          concorrente da esquina, que tem página com foto e telefone clicável.
-        </p>
-      </div>
+        <div className="border-t border-borda px-5 py-4">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-texto-fraco">
+            O que está faltando
+          </p>
+          <p className="text-[13.5px] leading-relaxed text-texto-suave">
+            Não tem site. No Google aparece só o pino do Maps, sem cardápio, sem
+            horário de funcionamento e sem link para pedido. Quem procura
+            &ldquo;padaria perto de mim&rdquo; às sete da manhã encontra o
+            concorrente da esquina, que tem página com foto e telefone clicável.
+          </p>
+        </div>
 
-      <div className="border-t border-borda bg-superficie-2 px-4 py-3">
-        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-marca">
-          Sua primeira mensagem, já escrita
-        </p>
-        <p className="text-[13.5px] leading-relaxed">
-          &ldquo;Bom dia! Passei em frente à padaria de vocês essa semana. Fui
-          procurar o cardápio no Google e não achei nada além do endereço. Vocês
-          perdem pedido por causa disso, principalmente de gente que está
-          chegando no bairro. Eu faço site para comércio da região e queria te
-          mostrar uma ideia rápida, sem compromisso. Posso mandar por aqui
-          mesmo?&rdquo;
-        </p>
-      </div>
-    </article>
+        {/* Filete na cor da marca: dentro do documento, esta é a parte que o
+            cliente realmente usa. */}
+        <div className="border-t-2 border-marca bg-superficie-2 px-5 py-4">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-marca">
+            Sua primeira mensagem, já escrita
+          </p>
+          <p className="text-[13.5px] leading-relaxed">
+            &ldquo;Bom dia! Passei em frente à padaria de vocês essa semana. Fui
+            procurar o cardápio no Google e não achei nada além do endereço.
+            Vocês perdem pedido por causa disso, principalmente de gente que
+            está chegando no bairro. Eu faço site para comércio da região e
+            queria te mostrar uma ideia rápida, sem compromisso. Posso mandar
+            por aqui mesmo?&rdquo;
+          </p>
+        </div>
+      </article>
+
+      <p className="mt-3 px-1 text-[12.5px] leading-relaxed text-texto-fraco">
+        Esse texto vai inteiro para o WhatsApp do negócio, com um toque no
+        painel.
+      </p>
+    </div>
   );
 }

@@ -13,8 +13,9 @@ export function linkWhatsApp(mensagem: string): string {
   return `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(mensagem)}`;
 }
 
+/** Sem nome próprio: a landing fala em voz de produto do começo ao fim. */
 export const MSG_INTERESSE =
-  "Oi Hugo! Vi o ProspecIA e quero entender como funciona.";
+  "Oi! Vi o ProspecIA e quero entender como funciona.";
 
 export function msgSuporte(nomeCliente: string): string {
   return `Oi Hugo! Aqui é da ${nomeCliente}. Preciso de ajuda com o painel.`;
