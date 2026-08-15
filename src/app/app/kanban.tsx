@@ -13,12 +13,25 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { DetalheLead } from "./detalhe-lead";
 import type { Lead, LeadStatus } from "@/lib/types";
 
-const COLUNAS: { id: LeadStatus; titulo: string }[] = [
-  { id: "novo", titulo: "Novo" },
-  { id: "contatado", titulo: "Contatado" },
-  { id: "convertido", titulo: "Convertido" },
+const COLUNAS: { id: LeadStatus; titulo: string; vazio: string }[] = [
+  {
+    id: "novo",
+    titulo: "Novo",
+    vazio: "Seus próximos diagnósticos chegam aqui.",
+  },
+  {
+    id: "contatado",
+    titulo: "Contatado",
+    vazio: "Mova pra cá quando falar com o negócio.",
+  },
+  {
+    id: "convertido",
+    titulo: "Convertido",
+    vazio: "Quando fechar o serviço, arraste pra cá.",
+  },
 ];
 
 const CORES: Record<LeadStatus, { ponto: string; texto: string; fundo: string }> = {
@@ -38,14 +51,18 @@ const CORES: Record<LeadStatus, { ponto: string; texto: string; fundo: string }>
 export function Kanban({ iniciais }: { iniciais: Lead[] }) {
   const [leads, setLeads] = useState(iniciais);
   const [arrastando, setArrastando] = useState<Lead | null>(null);
+  const [abertoId, setAbertoId] = useState<string | null>(null);
   const [aba, setAba] = useState<LeadStatus>("novo");
   const [aviso, setAviso] = useState("");
 
   const sensores = useSensors(
     // Sem esta distância mínima, qualquer toque no card viraria arrasto e o
-    // clique para expandir o diagnóstico pararia de funcionar.
+    // botão de abrir a ficha pararia de funcionar.
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
+
+  // Buscado a cada render para a ficha refletir a mudança de coluna na hora.
+  const aberto = leads.find((l) => l.id === abertoId) ?? null;
 
   async function mover(leadId: string, novoStatus: LeadStatus) {
     const alvo = leads.find((l) => l.id === leadId);
@@ -111,9 +128,15 @@ export function Kanban({ iniciais }: { iniciais: Lead[] }) {
               id={coluna.id}
               titulo={coluna.titulo}
               quantidade={porStatus(coluna.id).length}
+              vazio={coluna.vazio}
             >
               {porStatus(coluna.id).map((lead) => (
-                <CardArrastavel key={lead.id} lead={lead} onMover={mover} />
+                <CardArrastavel
+                  key={lead.id}
+                  lead={lead}
+                  onMover={mover}
+                  onAbrir={() => setAbertoId(lead.id)}
+                />
               ))}
             </Coluna>
           ))}
@@ -166,15 +189,26 @@ export function Kanban({ iniciais }: { iniciais: Lead[] }) {
 
         <div className="space-y-2">
           {porStatus(aba).map((lead) => (
-            <CorpoDoCard key={lead.id} lead={lead} onMover={mover} />
+            <CorpoDoCard
+              key={lead.id}
+              lead={lead}
+              onMover={mover}
+              onAbrir={() => setAbertoId(lead.id)}
+            />
           ))}
           {porStatus(aba).length === 0 && (
-            <p className="py-10 text-center text-sm text-texto-fraco">
-              Nada em &ldquo;{COLUNAS.find((c) => c.id === aba)?.titulo}&rdquo;.
+            <p className="px-4 py-10 text-center text-[13px] leading-relaxed text-texto-fraco">
+              {COLUNAS.find((c) => c.id === aba)?.vazio}
             </p>
           )}
         </div>
       </div>
+
+      <DetalheLead
+        lead={aberto}
+        onFechar={() => setAbertoId(null)}
+        onMover={mover}
+      />
     </div>
   );
 }
@@ -183,11 +217,13 @@ function Coluna({
   id,
   titulo,
   quantidade,
+  vazio,
   children,
 }: {
   id: LeadStatus;
   titulo: string;
   quantidade: number;
+  vazio: string;
   children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
@@ -206,7 +242,16 @@ function Coluna({
           {quantidade}
         </span>
       </h2>
-      <div className="min-h-24 space-y-2">{children}</div>
+      <div className="min-h-24 space-y-2">
+        {children}
+        {/* Todo cliente novo começa com tudo em Novo, então estas duas nascem
+            vazias justamente na primeira impressão. */}
+        {quantidade === 0 && (
+          <p className="px-1 py-6 text-center text-[12.5px] leading-relaxed text-texto-fraco">
+            {vazio}
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -214,9 +259,11 @@ function Coluna({
 function CardArrastavel({
   lead,
   onMover,
+  onAbrir,
 }: {
   lead: Lead;
   onMover: (id: string, s: LeadStatus) => void;
+  onAbrir: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: lead.id });
@@ -230,7 +277,7 @@ function CardArrastavel({
       {...listeners}
       {...attributes}
     >
-      <CorpoDoCard lead={lead} onMover={onMover} arrastavel />
+      <CorpoDoCard lead={lead} onMover={onMover} onAbrir={onAbrir} arrastavel />
     </div>
   );
 }
@@ -238,13 +285,14 @@ function CardArrastavel({
 function CorpoDoCard({
   lead,
   onMover,
+  onAbrir,
   arrastavel,
 }: {
   lead: Lead;
   onMover?: (id: string, s: LeadStatus) => void;
+  onAbrir?: () => void;
   arrastavel?: boolean;
 }) {
-  const [aberto, setAberto] = useState(false);
   const [menu, setMenu] = useState(false);
   const destinos = COLUNAS.filter((c) => c.id !== lead.status);
 
@@ -264,34 +312,27 @@ function CorpoDoCard({
         </p>
       )}
 
+      {/* Só uma prévia: o texto completo, a mensagem e os argumentos vivem na
+          ficha, senão o card cresce e o kanban perde a visão de conjunto. */}
       {lead.diagnostico && (
-        <>
-          <p
-            className={`mt-2 text-[12.5px] leading-relaxed text-texto-suave ${
-              aberto ? "" : "line-clamp-3"
-            }`}
-          >
-            {lead.diagnostico}
-          </p>
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => setAberto((v) => !v)}
-            className="-mx-1 mt-0.5 px-1 py-1.5 text-[11.5px] text-marca hover:underline"
-          >
-            {aberto ? "menos" : "ler tudo"}
-          </button>
-        </>
-      )}
-
-      {lead.telefone && (
-        <p className="mt-2 font-mono text-[11.5px] text-texto-suave">
-          {lead.telefone}
+        <p className="mt-2 line-clamp-2 text-[12.5px] leading-relaxed text-texto-suave">
+          {lead.diagnostico}
         </p>
       )}
 
+      {onAbrir && (
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onAbrir}
+          className="mt-2.5 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-marca px-2.5 text-[12.5px] font-semibold text-marca-contraste hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca lg:min-h-9"
+        >
+          {lead.mensagem ? "Ver mensagem" : "Ver detalhes"}
+        </button>
+      )}
+
       {onMover && (
-        <div className="relative mt-2.5">
+        <div className="relative mt-1.5">
           <button
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
@@ -299,7 +340,7 @@ function CorpoDoCard({
             aria-expanded={menu}
             /* min-h-11 = 44px: alvo de toque confortável no celular, que é
                onde o cliente mais usa. No computador pode ser mais compacto. */
-            className="min-h-11 w-full rounded-md border border-borda bg-superficie-2 px-2.5 text-[12px] font-medium text-texto-suave hover:border-borda-forte hover:text-texto lg:min-h-8"
+            className="min-h-11 w-full rounded-md border border-borda bg-superficie-2 px-2.5 text-[12px] font-medium text-texto-suave hover:border-borda-forte hover:text-texto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca lg:min-h-9"
           >
             Mover para…
           </button>
@@ -315,7 +356,7 @@ function CorpoDoCard({
                     setMenu(false);
                     onMover(lead.id, d.id);
                   }}
-                  className={`flex min-h-11 items-center rounded-md px-2.5 text-left text-[12px] font-medium lg:min-h-8 ${CORES[d.id].fundo} ${CORES[d.id].texto}`}
+                  className={`flex min-h-11 items-center rounded-md px-2.5 text-left text-[12px] font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca lg:min-h-9 ${CORES[d.id].fundo} ${CORES[d.id].texto}`}
                 >
                   {d.titulo}
                 </button>

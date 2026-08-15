@@ -41,8 +41,8 @@ create index if not exists prospect_notas_prospect_idx
 alter table clientes add column if not exists user_id uuid unique
   references auth.users(id) on delete set null;
 
--- O "30" de "12 de 30 diagnósticos usados". Configurável por cliente.
-alter table clientes add column if not exists limite_diagnosticos int not null default 30;
+-- O teto de "12 de 50 diagnósticos usados". Configurável por cliente.
+alter table clientes add column if not exists limite_diagnosticos int not null default 50;
 
 -- Âncora do ciclo de cobrança: o contador zera no aniversário mensal desta data.
 -- Nulo = usa a data de criação do cliente.

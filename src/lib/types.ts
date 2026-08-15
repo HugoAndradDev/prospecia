@@ -1,5 +1,11 @@
 export type LeadStatus = "novo" | "contatado" | "convertido";
 
+/** Melhor janela para abordar, calculada pelo n8n a partir do expediente. */
+export type HorarioSugerido = {
+  horario: string;
+  motivo: string;
+};
+
 export type Lead = {
   id: string;
   cliente_id: string;
@@ -7,6 +13,13 @@ export type Lead = {
   endereco: string | null;
   telefone: string | null;
   diagnostico: string | null;
+  /** A mensagem pronta que o cliente copia e manda para o negócio local. */
+  mensagem: string | null;
+  /** Argumentos de reforço, para quando o negócio hesita. */
+  argumentos: string[] | null;
+  /** Link wa.me montado pelo n8n. O export não traz telefone cru. */
+  link_whatsapp: string | null;
+  horarios_sugeridos: HorarioSugerido[] | null;
   status: LeadStatus;
   entregue_em: string;
   atualizado_em: string;
@@ -16,8 +29,14 @@ export type Cliente = {
   id: string;
   nome: string;
   slug: string;
+  user_id: string | null;
+  limite_diagnosticos: number;
+  assinatura_iniciada_em: string | null;
   criado_em: string;
 };
+
+/** Limite mensal do plano de R$ 67. */
+export const LIMITE_PADRAO = 50;
 
 export const PROSPECT_STAGES = [
   "pendente",

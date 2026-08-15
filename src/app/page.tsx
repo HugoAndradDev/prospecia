@@ -241,7 +241,7 @@ function OQueChega() {
 
 function Preco({ zap }: { zap: string }) {
   const incluso = [
-    "Até 30 diagnósticos por mês",
+    "Até 50 diagnósticos por mês",
     "Painel de acompanhamento, com login seu",
     "Suporte no WhatsApp, falando comigo direto",
   ];
@@ -277,7 +277,7 @@ function Preco({ zap }: { zap: string }) {
               ))}
             </ul>
             <p className="mt-5 text-[14px] leading-relaxed text-texto-fraco">
-              Passou de 30 num mês movimentado? O painel avisa e continua
+              Passou de 50 num mês movimentado? O painel avisa e continua
               funcionando normal. Você não perde acesso a nada do que já
               recebeu.
             </p>
@@ -304,7 +304,7 @@ function Objecoes() {
     },
     {
       p: "Quantos diagnósticos por mês?",
-      r: "Até 30. Na prática já é bastante coisa pra uma pessoa dar conta sozinha. Se você precisar de mais, me chama que a gente ajusta.",
+      r: "Até 50. Na prática já é bastante coisa pra uma pessoa dar conta sozinha. Se você precisar de mais, me chama que a gente ajusta.",
     },
     {
       p: "Você entrega os mesmos negócios pra várias pessoas?",

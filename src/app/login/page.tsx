@@ -52,16 +52,16 @@ function FormularioLogin() {
 
   return (
     <main className="flex min-h-screen flex-col bg-fundo px-4 text-texto">
-      <div className="flex justify-end py-4">
+      <header className="mx-auto flex w-full max-w-6xl items-center gap-3 py-4">
+        <p className="flex-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-marca">
+          ProspecIA
+        </p>
         <SeletorDeTema />
-      </div>
+      </header>
 
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center pb-16">
         <div className="mb-7 text-center">
-          <p className="font-mono text-xs uppercase tracking-[0.14em] text-marca">
-            ProspecIA
-          </p>
-          <h1 className="mt-2 text-xl font-semibold">Entrar na sua conta</h1>
+          <h1 className="text-xl font-semibold">Entrar na sua conta</h1>
         </div>
 
         {sessaoExpirada && (

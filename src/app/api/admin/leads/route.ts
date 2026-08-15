@@ -23,12 +23,41 @@ export async function GET(request: Request) {
   return NextResponse.json({ leads: data });
 }
 
-type ImportLead = {
-  nome_negocio: string;
+/**
+ * Um lead do jeito que o n8n (ProspecIA V2) entrega, no nó
+ * "Gerar Pacote do Relatorio". Os nomes aqui seguem o motor, não o banco:
+ * "nome" e não "nome_negocio", "mensagem_chave" e não "mensagem".
+ */
+type LeadDoMotor = {
+  nome?: string;
+  nome_negocio?: string;
   endereco?: string;
   telefone?: string;
   diagnostico?: string;
+  mensagem_chave?: string;
+  mensagem?: string;
+  argumentos?: unknown;
+  link_whatsapp?: string;
+  horarios_sugeridos?: unknown;
 };
+
+/**
+ * O arquivo do n8n é um OBJETO com os leads aninhados, não um array solto:
+ * { cliente, nicho, cidade, total_leads, leads: [...] }
+ * Aceita as duas formas para não obrigar ninguém a editar o export à mão.
+ */
+function extrairLeads(entrada: unknown): LeadDoMotor[] | null {
+  if (Array.isArray(entrada)) return entrada as LeadDoMotor[];
+  if (entrada && typeof entrada === "object") {
+    const pacote = entrada as { leads?: unknown };
+    if (Array.isArray(pacote.leads)) return pacote.leads as LeadDoMotor[];
+  }
+  return null;
+}
+
+function texto(valor: unknown): string | null {
+  return typeof valor === "string" && valor.trim() ? valor.trim() : null;
+}
 
 export async function POST(request: Request) {
   if (!checkAdminSecret(request)) {
@@ -37,36 +66,51 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const clienteId = body?.clienteId;
-  const leads = body?.leads;
+  const leads = extrairLeads(body?.leads);
 
-  if (!clienteId || !Array.isArray(leads)) {
+  if (!clienteId || !leads) {
     return NextResponse.json(
-      { error: "clienteId e leads (array) são obrigatórios" },
+      {
+        error:
+          "clienteId e os leads são obrigatórios. Cole o arquivo do n8n inteiro ou apenas a lista de leads.",
+      },
       { status: 400 }
     );
   }
 
-  const invalidos = leads.some(
-    (l: ImportLead) => !l || typeof l.nome_negocio !== "string" || !l.nome_negocio.trim()
-  );
-  if (invalidos) {
+  if (leads.length === 0) {
+    return NextResponse.json({ error: "o arquivo não tem lead nenhum" }, { status: 400 });
+  }
+
+  const semNome = leads.some((l) => !texto(l?.nome) && !texto(l?.nome_negocio));
+  if (semNome) {
     return NextResponse.json(
-      { error: "todo lead precisa de nome_negocio" },
+      { error: "todo lead precisa de um nome" },
       { status: 400 }
     );
   }
 
-  const rows = (leads as ImportLead[]).map((l) => ({
+  const rows = leads.map((l) => ({
     cliente_id: clienteId,
-    nome_negocio: l.nome_negocio.trim(),
-    endereco: l.endereco?.trim() || null,
-    telefone: l.telefone?.trim() || null,
-    diagnostico: l.diagnostico?.trim() || null,
+    nome_negocio: texto(l.nome) ?? texto(l.nome_negocio)!,
+    endereco: texto(l.endereco),
+    telefone: texto(l.telefone),
+    diagnostico: texto(l.diagnostico),
+    mensagem: texto(l.mensagem_chave) ?? texto(l.mensagem),
+    argumentos: Array.isArray(l.argumentos) ? l.argumentos : null,
+    link_whatsapp: texto(l.link_whatsapp),
+    horarios_sugeridos: Array.isArray(l.horarios_sugeridos)
+      ? l.horarios_sugeridos
+      : null,
   }));
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("leads").insert(rows).select();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ adicionados: data.length });
+
+  // Avisa quando o lote veio sem a mensagem pronta: sem ela o cliente recebe
+  // só o diagnóstico, que é menos do que o produto promete.
+  const semMensagem = data.filter((l) => !l.mensagem).length;
+  return NextResponse.json({ adicionados: data.length, semMensagem });
 }

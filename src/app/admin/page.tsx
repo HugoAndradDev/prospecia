@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminGate, AdminNav, sairDoAdmin } from "@/components/admin-gate";
+import { FichaCliente } from "./ficha-cliente";
 import type { Cliente, Lead, LeadStatus } from "@/lib/types";
 
 const STATUS_LABEL: Record<LeadStatus, string> = {
@@ -74,11 +75,11 @@ function ClientesDashboard({ secret }: { secret: string }) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(importText);
-      if (!Array.isArray(parsed)) throw new Error("não é uma lista");
     } catch {
-      setImportMsg("JSON inválido — confira se colou o array completo.");
+      setImportMsg("JSON inválido — confira se colou o arquivo inteiro.");
       return;
     }
+    // A rota aceita tanto o pacote do n8n quanto uma lista solta.
     const res = await fetch("/api/admin/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-secret": secret },
@@ -86,7 +87,11 @@ function ClientesDashboard({ secret }: { secret: string }) {
     });
     const data = await res.json();
     if (res.ok) {
-      setImportMsg(`${data.adicionados} lead(s) adicionado(s).`);
+      setImportMsg(
+        data.semMensagem > 0
+          ? `${data.adicionados} lead(s) adicionado(s), mas ${data.semMensagem} vieram sem mensagem pronta.`
+          : `${data.adicionados} lead(s) adicionado(s), com mensagem de abordagem.`
+      );
       setImportText("");
       carregarLeads(selectedId);
     } else {
@@ -121,8 +126,8 @@ function ClientesDashboard({ secret }: { secret: string }) {
         <header>
           <h1 className="text-2xl font-semibold mb-1">Clientes & leads</h1>
           <p className="text-sm text-neutral-400">
-            Cada cliente recebe um link secreto com os leads que você entregou
-            pra ele.
+            Cada cliente entra em prospecia.com.br com e-mail e senha, e vê
+            apenas os leads que você entregou pra ele.
           </p>
         </header>
 
@@ -159,9 +164,9 @@ function ClientesDashboard({ secret }: { secret: string }) {
             ))}
           </div>
 
-          {selected && (
+          {selected && !selected.user_id && (
             <p className="text-xs text-neutral-400 font-mono break-all">
-              Link do painel:{" "}
+              Link antigo, enquanto não houver login:{" "}
               <span className="text-orange-400">
                 https://prospecia.com.br/painel/{selected.slug}
               </span>
@@ -171,18 +176,29 @@ function ClientesDashboard({ secret }: { secret: string }) {
 
         {selected && (
           <>
+            <FichaCliente
+              cliente={selected}
+              secret={secret}
+              onSalvo={(c) =>
+                setClientes((atual) =>
+                  atual.map((x) => (x.id === c.id ? c : x))
+                )
+              }
+            />
+
             <section className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 space-y-3">
               <h2 className="text-sm font-medium text-neutral-300">
                 Importar leads para {selected.nome}
               </h2>
               <p className="text-xs text-neutral-500">
-                Cole o array JSON exportado do n8n. Campos: nome_negocio
-                (obrigatório), endereco, telefone, diagnostico.
+                Cole o arquivo que o n8n gera (`relatorio-cliente-data.json`)
+                inteiro, do jeito que ele sai. A mensagem de abordagem, os
+                argumentos de reforço e o link de WhatsApp vêm junto.
               </p>
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
-                placeholder='[{"nome_negocio": "...", "endereco": "...", "telefone": "...", "diagnostico": "..."}]'
+                placeholder='{"cliente": "...", "leads": [{"nome": "...", "mensagem_chave": "..."}]}'
                 className="w-full min-h-32 rounded-lg bg-neutral-950 border border-neutral-800 px-3 py-2 text-xs font-mono outline-none focus:border-orange-500"
               />
               <div className="flex items-center gap-3">

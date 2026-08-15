@@ -163,6 +163,14 @@ body {
   touch-action: none;
 }
 
+/* Ficha do lead: no celular ocupa a tela inteira, no computador flutua. */
+.ficha-lead::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+.ficha-lead:not([open]) {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
